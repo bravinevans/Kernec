@@ -4,16 +4,28 @@ echo "====================================="
 echo " Kernec Environment Verification"
 echo "====================================="
 echo
-echo "[INFO] Checking build environment..."
+
+REQUIRED_TOOLS=("gcc" "make" "cmake" "git")
+
+MISSING=0
+
+for tool in "${REQUIRED_TOOLS[@]}"
+do
+    if command -v "$tool" >/dev/null 2>&1; then
+        VERSION=$("$tool" --version 2>/dev/null | head -n 1)
+        echo "[ OK ] $VERSION"
+    else
+        echo "[FAIL] $tool not found"
+        MISSING=1
+    fi
+done
+
 echo
-echo "[INFO] Environment validation not yet implemented."
-echo "[INFO] Future checks will verify:"
-echo " - gcc / clang"
-echo " - make"
-echo " - cmake"
-echo " - git"
-echo " - qemu"
-echo " - grub tools"
-echo " - xorriso"
-echo
-echo "[OK] Script executed successfully."
+
+if [ "$MISSING" -eq 0 ]; then
+    echo "[SUCCESS] Build environment is ready."
+    exit 0
+else
+    echo "[ERROR] One or more required tools are missing."
+    exit 1
+fi
