@@ -74,6 +74,12 @@ OBJECTS := \
 $(patsubst %.c,$(BUILD_DIR)/%.o,$(C_SOURCES)) \
 $(patsubst %.S,$(BUILD_DIR)/%.o,$(ASM_SOURCES))
 
+OBJS := $(BUILD_DIR)/boot.o
+OBJS += $(BUILD_DIR)/serial.o
+OBJS += $(BUILD_DIR)/cpu.o
+OBJS += $(BUILD_DIR)/panic.o
+OBJS += $(BUILD_DIR)/main.o
+
 # -------------------------------------------------------------------------
 # Targets
 # -------------------------------------------------------------------------
@@ -81,25 +87,31 @@ $(patsubst %.S,$(BUILD_DIR)/%.o,$(ASM_SOURCES))
 .PHONY: all clean info
 
 all:
-	@echo ""
-	@echo "========================================"
-	@echo "        Kernec Build System"
-	@echo "========================================"
-	@echo ""
+    @echo ""
+    @echo "========================================"
+    @echo "        Kernec Build System"
+    @echo "========================================"
+    @echo ""
 
-	@if [ -z "$(C_SOURCES)$(ASM_SOURCES)" ]; then \
-		echo "No kernel source files found."; \
-		echo "Build system verified."; \
-		exit 0; \
-	fi
+    @if [ -z "$(C_SOURCES)$(ASM_SOURCES)" ]; then \
+        echo "No kernel source files found."; \
+        echo "Build system verified."; \
+        exit 0; \
+    fi
 
-	@echo "Kernel sources detected."
-	@echo "Compilation stage will be added in Sprint 3."
+    @echo "Kernel sources detected."
+    @echo "Compilation stage will be added in Sprint 3."
+
+$(BUILD_DIR)/cpu.o: kernel/arch/x86_64/cpu.c include/kernec/cpu.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/panic.o: kernel/core/panic.c include/kernec/panic.h include/kernec/serial.h include/kernec/cpu.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(BUILD_DIR)
+    rm -rf $(BUILD_DIR)
 
 info:
-	@echo "Compiler : $(CC)"
-	@echo "Linker   : $(LD)"
-	@echo "Kernel   : $(KERNEL)"
+    @echo "Compiler : $(CC)"
+    @echo "Linker   : $(LD)"
+    @echo "Kernel   : $(KERNEL)"
