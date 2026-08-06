@@ -10,6 +10,8 @@
 
 .text
 
+.intel_syntax noprefix
+
 .global syscall_entry
 .type syscall_entry, @function
 
@@ -18,19 +20,19 @@
 syscall_entry:
 
     /*
-     * Save the original fourth syscall argument.
-     *
-     * The SYSCALL instruction places it in R10.
-     * The C ABI expects the fourth argument in RCX.
+     * The SYSCALL instruction stores the fourth argument
+     * in R10. The System V AMD64 ABI expects it in RCX.
      */
     mov rcx, r10
 
     /*
      * Temporary return.
      *
-     * Later this function will invoke
+     * Sprint 5 will replace this with a call into
      * syscall_dispatch().
      */
     ret
 
 .size syscall_entry, .-syscall_entry
+
+.att_syntax prefix

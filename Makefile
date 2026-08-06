@@ -3,115 +3,134 @@
 # =============================================================================
 #
 # Project      : Kernec
-# Build System : GNU Make
 # Architecture : x86_64
+# Build System : GNU Make
 #
-# This Makefile is the single entry point for building Kernec.
+# Philosophy
 #
-# Philosophy:
-#   - Keep the build system simple.
-#   - Grow only when required.
-#   - Fail early.
-#   - Keep responsibilities separated.
+#   • Keep the build simple.
+#   • Build everything automatically.
+#   • Fail fast.
+#   • Scale without rewriting.
 #
 # =============================================================================
 
 SHELL := /bin/bash
 
-# -------------------------------------------------------------------------
+.DEFAULT_GOAL := all
+
+# -----------------------------------------------------------------------------
 # Toolchain
-# -------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
-CC      := gcc
-LD      := ld
-AS      := gcc
+CC := gcc
+LD := ld
+AS := gcc
 
-# -------------------------------------------------------------------------
+RM := rm -rf
+MKDIR := mkdir -p
+# -----------------------------------------------------------------------------
 # Directories
-# -------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 BUILD_DIR := build
 
-BOOT_DIR := boot
-
 KERNEL_DIR := kernel
+
+BOOT_DIR := boot
 
 INCLUDE_DIR := include
 
-# -------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Output
-# -------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 KERNEL := $(BUILD_DIR)/kernec.elf
-
-# -------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Compiler Flags
-# -------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 CFLAGS := \
-    -std=gnu11 \
-    -ffreestanding \
-    -fno-stack-protector \
-    -fno-pic \
-    -fno-builtin \
-    -Wall \
-    -Wextra \
-    -I$(INCLUDE_DIR)
+	-std=gnu11 \
+	-ffreestanding \
+	-fno-stack-protector \
+	-fno-pic \
+	-fno-pie \
+	-fno-builtin \
+	-m64 \
+	-mcmodel=kernel \
+	-Wall \
+	-Wextra \
+	-I$(INCLUDE_DIR)
+
+ASFLAGS := \
+	-m64 \
+	-mcmodel=kernel \
+	-ffreestanding \
+	-fno-pic \
+	-fno-pie
 
 LDFLAGS := \
-    -T $(BOOT_DIR)/kernel.ld \
-    -nostdlib
+	-T $(BOOT_DIR)/linker.ld \
+	-nostdlib
+# -----------------------------------------------------------------------------
+# Source Files
+# -----------------------------------------------------------------------------
 
-# -------------------------------------------------------------------------
-# Sources
-# -------------------------------------------------------------------------
+C_SOURCES := $(shell find $(KERNEL_DIR) -type f -name "*.c")
 
-C_SOURCES := $(shell find $(KERNEL_DIR) -name "*.c")
+ASM_SOURCES := $(shell find $(KERNEL_DIR) -type f -name "*.S")
 
-ASM_SOURCES := $(shell find $(KERNEL_DIR) -name "*.S")
+SOURCES := \
+	$(C_SOURCES) \
+	$(ASM_SOURCES)
 
 OBJECTS := \
-$(patsubst %.c,$(BUILD_DIR)/%.o,$(C_SOURCES)) \
-$(patsubst %.S,$(BUILD_DIR)/%.o,$(ASM_SOURCES))
+	$(patsubst $(KERNEL_DIR)/%.c,$(BUILD_DIR)/%.o,$(C_SOURCES)) \
+	$(patsubst $(KERNEL_DIR)/%.S,$(BUILD_DIR)/%.o,$(ASM_SOURCES))
+# -----------------------------------------------------------------------------
+# Build Rules
+# -----------------------------------------------------------------------------
 
-OBJS := $(BUILD_DIR)/boot.o
-OBJS += $(BUILD_DIR)/serial.o
-OBJS += $(BUILD_DIR)/cpu.o
-OBJS += $(BUILD_DIR)/panic.o
-OBJS += $(BUILD_DIR)/main.o
+$(BUILD_DIR):
+	$(MKDIR) $(BUILD_DIR)
 
-# -------------------------------------------------------------------------
+$(BUILD_DIR)/%.o: $(KERNEL_DIR)/%.c
+	@$(MKDIR) $(dir $@)
+	@echo " CC  $<"
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o: $(KERNEL_DIR)/%.S
+	@$(MKDIR) $(dir $@)
+	@echo " AS  $<"
+	$(AS) $(ASFLAGS) -c $< -o $@
+# -----------------------------------------------------------------------------
+# Link
+# -----------------------------------------------------------------------------
+
+$(KERNEL): $(OBJECTS) | $(BUILD_DIR)
+	@echo " LD  $@"
+	$(LD) $(LDFLAGS) -o $@ $(OBJECTS)
+
+# -----------------------------------------------------------------------------
 # Targets
-# -------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 .PHONY: all clean info
 
-all:
-    @echo ""
-    @echo "========================================"
-    @echo "        Kernec Build System"
-    @echo "========================================"
-    @echo ""
-
-    @if [ -z "$(C_SOURCES)$(ASM_SOURCES)" ]; then \
-        echo "No kernel source files found."; \
-        echo "Build system verified."; \
-        exit 0; \
-    fi
-
-    @echo "Kernel sources detected."
-    @echo "Compilation stage will be added in Sprint 3."
-
-$(BUILD_DIR)/cpu.o: kernel/arch/x86_64/cpu.c include/kernec/cpu.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(BUILD_DIR)/panic.o: kernel/core/panic.c include/kernec/panic.h include/kernec/serial.h include/kernec/cpu.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+all: $(KERNEL)
 
 clean:
-    rm -rf $(BUILD_DIR)
+	@echo " CLEAN"
+	$(RM) $(BUILD_DIR)
 
 info:
-    @echo "Compiler : $(CC)"
-    @echo "Linker   : $(LD)"
-    @echo "Kernel   : $(KERNEL)"
+	@echo ""
+	@echo "========== Kernec Build =========="
+	@echo "Compiler : $(CC)"
+	@echo "Assembler: $(AS)"
+	@echo "Linker   : $(LD)"
+	@echo "Kernel   : $(KERNEL)"
+	@echo "C files  : $(words $(C_SOURCES))"
+	@echo "ASM files: $(words $(ASM_SOURCES))"
+	@echo "Objects  : $(words $(OBJECTS))"
