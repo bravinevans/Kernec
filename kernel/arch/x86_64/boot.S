@@ -29,11 +29,21 @@
 .section .limine_requests, "aw", @progbits
 .align 8
 
-.quad 0xf9562b2d5c95a6c8
-.quad 0x6a78a343b4d6d6b6
-.quad 3
+/* Limine requests start marker */
+.quad 0xf6b8f4b39de7d1ae
+.quad 0xfab91a6940fcb9cf
+.quad 0x785c6ed015d3e316
+.quad 0x181e920a7852b9d9
 
+/* Base revision request */
+.quad 0xf9562b2d5c95a6c8
+.quad 0x6a7b384944536bdc
+.quad 3
 .quad 0
+
+/* Limine requests end marker */
+.quad 0xadc0e0531bb10d03
+.quad 0x9572709f31764c62
 
 .text
 
