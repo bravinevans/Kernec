@@ -1,7 +1,4 @@
-/*
- * x86_64 exception and interrupt entry stubs.
- * Each stub normalizes the CPU stack to {vector, error_code, iret frame}.
- */
+/* x86_64 exception and interrupt entry stubs. */
 .text
 .extern interrupt_dispatch
 
@@ -23,7 +20,9 @@ isr\vector:
 .endm
 
 isr_common:
-    /* Save all general-purpose registers; frame layout matches interrupts.h. */
+    /* Immediate pushes sign-extend above 127; retain only the vector byte. */
+    andq $0xff, (%rsp)
+    /* Save registers in the exact order described by struct interrupt_frame. */
     pushq %rax
     pushq %rbx
     pushq %rcx
@@ -43,6 +42,7 @@ isr_common:
     movq %rsp, %rdi
     movq %rsp, %rbx
     andq $-16, %rsp
+    cld
     call interrupt_dispatch
     movq %rbx, %rsp
 
@@ -61,10 +61,10 @@ isr_common:
     popq %rcx
     popq %rbx
     popq %rax
-    addq $16, %rsp             /* vector and normalized error code */
+    addq $16, %rsp
     iretq
 
-/* CPU exceptions whose architectural entry frame includes an error code. */
+/* Architectural exception error-code vectors. */
 ISR_NOERR 0
 ISR_NOERR 1
 ISR_NOERR 2
@@ -98,7 +98,6 @@ ISR_ERR   29
 ISR_ERR   30
 ISR_NOERR 31
 
-/* All non-exception vectors share a stub that supplies a zero error code. */
 .macro ISR_IRQ vector
 .global isr\vector
 .type isr\vector, @function
@@ -107,14 +106,12 @@ isr\vector:
     pushq $\vector
     jmp isr_common
 .endm
-
 .set vector, 32
 .rept 224
     ISR_IRQ %vector
     .set vector, vector + 1
 .endr
 
-/* Public table used to populate all 256 IDT entries. */
 .section .rodata
 .align 8
 .global isr_stub_table

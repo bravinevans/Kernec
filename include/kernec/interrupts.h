@@ -1,9 +1,4 @@
-/*
- * Public x86_64 interrupt interface.
- *
- * IRQ handlers run in interrupt context with maskable interrupts disabled.
- * They must be bounded and must not block, sleep, or allocate memory.
- */
+/* Public x86_64 interrupt interface. */
 #ifndef KERNEC_INTERRUPTS_H
 #define KERNEC_INTERRUPTS_H
 
@@ -13,39 +8,26 @@
 #define KERNEC_EXCEPTION_COUNT 32u
 #define KERNEC_IRQ_BASE 32u
 
+/*
+ * General-purpose registers and the normalized vector/error fields are always
+ * present. rsp/ss are available only when the CPU entered from another CPL.
+ */
 struct interrupt_frame {
-    uint64_t r15;
-    uint64_t r14;
-    uint64_t r13;
-    uint64_t r12;
-    uint64_t r11;
-    uint64_t r10;
-    uint64_t r9;
-    uint64_t r8;
-    uint64_t rsi;
-    uint64_t rdi;
-    uint64_t rbp;
-    uint64_t rdx;
-    uint64_t rcx;
-    uint64_t rbx;
-    uint64_t rax;
-    uint64_t vector;
-    uint64_t error_code;
-    uint64_t rip;
-    uint64_t cs;
-    uint64_t rflags;
-    /* rsp and ss are present when the CPU changed privilege level. */
+    uint64_t r15, r14, r13, r12, r11, r10, r9, r8;
+    uint64_t rsi, rdi, rbp, rdx, rcx, rbx, rax;
+    uint64_t vector, error_code;
+    uint64_t rip, cs, rflags;
 };
 
 typedef void (*interrupt_handler_t)(struct interrupt_frame *frame);
 
-/* Install and load the x86_64 IDT. This does not enable interrupts. */
+/* Install and load the 256-entry IDT. This leaves IF disabled. */
 void interrupts_init(void);
 
-/* Register a handler for vectors 32-255. Returns 0 on success, -1 on error. */
+/* Register an external-interrupt handler for vectors 32-255. */
 int interrupt_register_handler(uint8_t vector, interrupt_handler_t handler);
 
-/* Called only by the architecture assembly entry stubs. */
+/* Architecture entry point; called only by assembly stubs. */
 void interrupt_dispatch(struct interrupt_frame *frame);
 
 #endif /* KERNEC_INTERRUPTS_H */
