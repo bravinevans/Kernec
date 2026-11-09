@@ -8,47 +8,27 @@
 #
 # Philosophy
 #
-#   • Keep the build simple.
-#   • Build everything automatically.
-#   • Fail fast.
-#   • Scale without rewriting.
+#   * Keep the build simple.
+#   * Build everything automatically.
+#   * Fail fast.
+#   * Scale without rewriting.
 #
 # =============================================================================
 
 SHELL := /bin/bash
-
 .DEFAULT_GOAL := all
-
-# -----------------------------------------------------------------------------
-# Toolchain
-# -----------------------------------------------------------------------------
 
 CC := gcc
 LD := ld
 AS := gcc
-
 RM := rm -rf
 MKDIR := mkdir -p
-# -----------------------------------------------------------------------------
-# Directories
-# -----------------------------------------------------------------------------
 
 BUILD_DIR := build
-
 KERNEL_DIR := kernel
-
 BOOT_DIR := boot
-
 INCLUDE_DIR := include
-
-# -----------------------------------------------------------------------------
-# Output
-# -----------------------------------------------------------------------------
-
 KERNEL := $(BUILD_DIR)/kernec.elf
-# -----------------------------------------------------------------------------
-# Compiler Flags
-# -----------------------------------------------------------------------------
 
 CFLAGS := \
 	-std=gnu11 \
@@ -59,6 +39,7 @@ CFLAGS := \
 	-fno-builtin \
 	-m64 \
 	-mcmodel=kernel \
+	-mno-red-zone \
 	-Wall \
 	-Wextra \
 	-I$(INCLUDE_DIR)
@@ -70,27 +51,13 @@ ASFLAGS := \
 	-fno-pic \
 	-fno-pie
 
-LDFLAGS := \
-	-T $(BOOT_DIR)/linker.ld \
-	-nostdlib
-# -----------------------------------------------------------------------------
-# Source Files
-# -----------------------------------------------------------------------------
+LDFLAGS := -T $(BOOT_DIR)/linker.ld -nostdlib
 
 C_SOURCES := $(shell find $(KERNEL_DIR) -type f -name "*.c")
-
 ASM_SOURCES := $(shell find $(KERNEL_DIR) -type f -name "*.S")
-
-SOURCES := \
-	$(C_SOURCES) \
-	$(ASM_SOURCES)
-
 OBJECTS := \
 	$(patsubst $(KERNEL_DIR)/%.c,$(BUILD_DIR)/%.o,$(C_SOURCES)) \
 	$(patsubst $(KERNEL_DIR)/%.S,$(BUILD_DIR)/%.o,$(ASM_SOURCES))
-# -----------------------------------------------------------------------------
-# Build Rules
-# -----------------------------------------------------------------------------
 
 $(BUILD_DIR):
 	$(MKDIR) $(BUILD_DIR)
@@ -104,20 +71,12 @@ $(BUILD_DIR)/%.o: $(KERNEL_DIR)/%.S
 	@$(MKDIR) $(dir $@)
 	@echo " AS  $<"
 	$(AS) $(ASFLAGS) -c $< -o $@
-# -----------------------------------------------------------------------------
-# Link
-# -----------------------------------------------------------------------------
 
 $(KERNEL): $(OBJECTS) | $(BUILD_DIR)
 	@echo " LD  $@"
 	$(LD) $(LDFLAGS) -o $@ $(OBJECTS)
 
-# -----------------------------------------------------------------------------
-# Targets
-# -----------------------------------------------------------------------------
-
 .PHONY: all clean info
-
 all: $(KERNEL)
 
 clean:
@@ -125,7 +84,6 @@ clean:
 	$(RM) $(BUILD_DIR)
 
 info:
-	@echo ""
 	@echo "========== Kernec Build =========="
 	@echo "Compiler : $(CC)"
 	@echo "Assembler: $(AS)"

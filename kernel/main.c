@@ -1,66 +1,21 @@
-/*
- * File:
- * kernel/arch/x86_64/interrupts_asm.S
- *
- * Responsibility:
- * Exception entry stubs for the x86_64 IDT.
- */
+/* First C entry point for the Kernec kernel. */
+#include <kernec/cpu.h>
+#include <kernec/interrupts.h>
+#include <kernec/serial.h>
 
-.macro ISR_NOERR vec
-.globl isr\vec
-.type isr\vec, @function
-isr\vec:
-    cli
-    mov $\vec, %rdi
-    mov $0, %rsi
-    call interrupt_handler
-    hlt
-    jmp .
-.endm
+void kmain(void)
+{
+    serial_init();
+    serial_write("\n=====================================\n");
+    serial_write("        Kernec Operating System      \n");
+    serial_write("=====================================\n");
+    serial_write("[KERNEC] Boot successful.\n");
+    serial_write("Architecture : x86_64\n");
+    serial_write("Bootloader   : Limine\n");
+    serial_write("Console      : COM1 Serial\n");
 
-.macro ISR_ERR vec
-.globl isr\vec
-.type isr\vec, @function
-isr\vec:
-    cli
-    pop %rsi
-    mov $\vec, %rdi
-    call interrupt_handler
-    hlt
-    jmp .
-.endm
+    interrupts_init();
+    serial_write("[KERNEC] 256-entry IDT installed; maskable interrupts remain disabled.\n");
 
-ISR_NOERR 0
-ISR_NOERR 1
-ISR_NOERR 2
-ISR_NOERR 3
-ISR_NOERR 4
-ISR_NOERR 5
-ISR_NOERR 6
-ISR_NOERR 7
-ISR_ERR 8
-ISR_NOERR 9
-ISR_ERR 10
-ISR_ERR 11
-ISR_ERR 12
-ISR_ERR 13
-ISR_ERR 14
-ISR_NOERR 15
-ISR_NOERR 16
-ISR_ERR 17
-ISR_NOERR 18
-ISR_NOERR 19
-ISR_NOERR 20
-ISR_NOERR 21
-ISR_NOERR 22
-ISR_NOERR 23
-ISR_NOERR 24
-ISR_NOERR 25
-ISR_NOERR 26
-ISR_NOERR 27
-ISR_NOERR 28
-ISR_NOERR 29
-ISR_NOERR 30
-ISR_NOERR 31
-
-.text
+    cpu_halt_forever();
+}

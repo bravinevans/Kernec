@@ -1,161 +1,131 @@
 /*
- * File:
- * kernel/arch/x86_64/interrupts.c
- *
- * Responsibility:
- * x86_64 interrupt descriptor table setup and early exception handling.
+ * x86_64 exception and interrupt entry stubs.
+ * Each stub normalizes the CPU stack to {vector, error_code, iret frame}.
  */
+.text
+.extern interrupt_dispatch
 
-#include <kernec/cpu.h>
-#include <kernec/interrupts.h>
-#include <kernec/serial.h>
+.macro ISR_NOERR vector
+.global isr\vector
+.type isr\vector, @function
+isr\vector:
+    pushq $0
+    pushq $\vector
+    jmp isr_common
+.endm
 
-#include <stdint.h>
-#include <stddef.h>
+.macro ISR_ERR vector
+.global isr\vector
+.type isr\vector, @function
+isr\vector:
+    pushq $\vector
+    jmp isr_common
+.endm
 
-struct idt_entry {
-    uint16_t base_low;
-    uint16_t selector;
-    uint8_t ist;
-    uint8_t flags;
-    uint16_t base_mid;
-    uint32_t base_high;
-    uint32_t reserved;
-} __attribute__((packed));
+isr_common:
+    /* Save all general-purpose registers; frame layout matches interrupts.h. */
+    pushq %rax
+    pushq %rbx
+    pushq %rcx
+    pushq %rdx
+    pushq %rbp
+    pushq %rdi
+    pushq %rsi
+    pushq %r8
+    pushq %r9
+    pushq %r10
+    pushq %r11
+    pushq %r12
+    pushq %r13
+    pushq %r14
+    pushq %r15
 
-struct idtr {
-    uint16_t limit;
-    uint64_t base;
-} __attribute__((packed));
+    movq %rsp, %rdi
+    movq %rsp, %rbx
+    andq $-16, %rsp
+    call interrupt_dispatch
+    movq %rbx, %rsp
 
-extern void isr0(void);
-extern void isr1(void);
-extern void isr2(void);
-extern void isr3(void);
-extern void isr4(void);
-extern void isr5(void);
-extern void isr6(void);
-extern void isr7(void);
-extern void isr8(void);
-extern void isr9(void);
-extern void isr10(void);
-extern void isr11(void);
-extern void isr12(void);
-extern void isr13(void);
-extern void isr14(void);
-extern void isr15(void);
-extern void isr16(void);
-extern void isr17(void);
-extern void isr18(void);
-extern void isr19(void);
-extern void isr20(void);
-extern void isr21(void);
-extern void isr22(void);
-extern void isr23(void);
-extern void isr24(void);
-extern void isr25(void);
-extern void isr26(void);
-extern void isr27(void);
-extern void isr28(void);
-extern void isr29(void);
-extern void isr30(void);
-extern void isr31(void);
+    popq %r15
+    popq %r14
+    popq %r13
+    popq %r12
+    popq %r11
+    popq %r10
+    popq %r9
+    popq %r8
+    popq %rsi
+    popq %rdi
+    popq %rbp
+    popq %rdx
+    popq %rcx
+    popq %rbx
+    popq %rax
+    addq $16, %rsp             /* vector and normalized error code */
+    iretq
 
-static struct idt_entry idt[256];
-static struct idtr idtr;
+/* CPU exceptions whose architectural entry frame includes an error code. */
+ISR_NOERR 0
+ISR_NOERR 1
+ISR_NOERR 2
+ISR_NOERR 3
+ISR_NOERR 4
+ISR_NOERR 5
+ISR_NOERR 6
+ISR_NOERR 7
+ISR_ERR   8
+ISR_NOERR 9
+ISR_ERR   10
+ISR_ERR   11
+ISR_ERR   12
+ISR_ERR   13
+ISR_ERR   14
+ISR_NOERR 15
+ISR_NOERR 16
+ISR_ERR   17
+ISR_NOERR 18
+ISR_NOERR 19
+ISR_NOERR 20
+ISR_ERR   21
+ISR_NOERR 22
+ISR_NOERR 23
+ISR_NOERR 24
+ISR_NOERR 25
+ISR_NOERR 26
+ISR_NOERR 27
+ISR_NOERR 28
+ISR_ERR   29
+ISR_ERR   30
+ISR_NOERR 31
 
-static void idt_set_gate(uint8_t vector, void (*handler)(void), uint8_t flags)
-{
-    uintptr_t address = (uintptr_t)handler;
+/* All non-exception vectors share a stub that supplies a zero error code. */
+.macro ISR_IRQ vector
+.global isr\vector
+.type isr\vector, @function
+isr\vector:
+    pushq $0
+    pushq $\vector
+    jmp isr_common
+.endm
 
-    idt[vector].base_low = (uint16_t)(address & 0xFFFFu);
-    idt[vector].base_mid = (uint16_t)((address >> 16) & 0xFFFFu);
-    idt[vector].base_high = (uint32_t)((address >> 32) & 0xFFFFFFFFu);
-    idt[vector].selector = 0x08;
-    idt[vector].ist = 0;
-    idt[vector].flags = flags;
-    idt[vector].reserved = 0;
-}
+.set vector, 32
+.rept 224
+    ISR_IRQ %vector
+    .set vector, vector + 1
+.endr
 
-static void serial_write_hex32(uint32_t value)
-{
-    static const char digits[] = "0123456789ABCDEF";
-    char buffer[9];
-    int i;
-
-    buffer[8] = '\0';
-
-    for (i = 7; i >= 0; --i) {
-        buffer[i] = digits[value & 0xF];
-        value >>= 4;
-    }
-
-    serial_write("0x");
-    serial_write(buffer);
-}
-
-void interrupt_handler(unsigned int vector, unsigned long error_code)
-{
-    serial_write("\n[KERNEC] Unhandled exception.\n");
-    serial_write("Vector : ");
-    serial_write_hex32((uint32_t)vector);
-    serial_write("\n");
-
-    serial_write("Error  : ");
-    serial_write_hex32((uint32_t)error_code);
-    serial_write("\n");
-
-    serial_write("Kernel halted.\n");
-    cpu_halt_forever();
-}
-
-void interrupts_init(void)
-{
-    for (size_t i = 0; i < 256; ++i) {
-        idt[i].base_low = 0;
-        idt[i].base_mid = 0;
-        idt[i].base_high = 0;
-        idt[i].selector = 0;
-        idt[i].ist = 0;
-        idt[i].flags = 0;
-        idt[i].reserved = 0;
-    }
-
-    idt_set_gate(0, isr0, 0x8E);
-    idt_set_gate(1, isr1, 0x8E);
-    idt_set_gate(2, isr2, 0x8E);
-    idt_set_gate(3, isr3, 0x8E);
-    idt_set_gate(4, isr4, 0x8E);
-    idt_set_gate(5, isr5, 0x8E);
-    idt_set_gate(6, isr6, 0x8E);
-    idt_set_gate(7, isr7, 0x8E);
-    idt_set_gate(8, isr8, 0x8E);
-    idt_set_gate(9, isr9, 0x8E);
-    idt_set_gate(10, isr10, 0x8E);
-    idt_set_gate(11, isr11, 0x8E);
-    idt_set_gate(12, isr12, 0x8E);
-    idt_set_gate(13, isr13, 0x8E);
-    idt_set_gate(14, isr14, 0x8E);
-    idt_set_gate(15, isr15, 0x8E);
-    idt_set_gate(16, isr16, 0x8E);
-    idt_set_gate(17, isr17, 0x8E);
-    idt_set_gate(18, isr18, 0x8E);
-    idt_set_gate(19, isr19, 0x8E);
-    idt_set_gate(20, isr20, 0x8E);
-    idt_set_gate(21, isr21, 0x8E);
-    idt_set_gate(22, isr22, 0x8E);
-    idt_set_gate(23, isr23, 0x8E);
-    idt_set_gate(24, isr24, 0x8E);
-    idt_set_gate(25, isr25, 0x8E);
-    idt_set_gate(26, isr26, 0x8E);
-    idt_set_gate(27, isr27, 0x8E);
-    idt_set_gate(28, isr28, 0x8E);
-    idt_set_gate(29, isr29, 0x8E);
-    idt_set_gate(30, isr30, 0x8E);
-    idt_set_gate(31, isr31, 0x8E);
-
-    idtr.limit = (uint16_t)(sizeof(idt) - 1);
-    idtr.base = (uint64_t)&idt[0];
-
-    __asm__ volatile("lidt %0" : : "m"(idtr));
-}
+/* Public table used to populate all 256 IDT entries. */
+.section .rodata
+.align 8
+.global isr_stub_table
+.type isr_stub_table, @object
+isr_stub_table:
+.macro ISR_TABLE_ENTRY vector
+    .quad isr\vector
+.endm
+.set vector, 0
+.rept 256
+    ISR_TABLE_ENTRY %vector
+    .set vector, vector + 1
+.endr
+.size isr_stub_table, .-isr_stub_table
